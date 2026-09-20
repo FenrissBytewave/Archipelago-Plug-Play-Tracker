@@ -10,8 +10,8 @@ Crash 2 found their Wumpa (N. Sanity Beach: Box 4)
 Each player gets their own consistent color, and items are color-coded by classification (trap / progression / useful / filler), so you can tell what's happening in the multiworld at a glance.
 
 <p align="center">
-  <img src="Pics/pic2.png" width="480" alt="Live item feed showing colored player names and items">
-  <img src="Pics/pic1.png" width="480" alt="OBS Mode overlay with transparent background">
+  <img src="pics/Pic2.png" width="480" alt="Live item feed showing colored player names and items">
+  <img src="pics/Pic1.png" width="480" alt="OBS Mode overlay with transparent background">
 </p>
 
 ## Features
