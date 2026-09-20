@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>
+    Archipelago Live Item Feed
+</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+
+    margin: 0;
+
+    background: #10121a;
+
+    color: #e5e7eb;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+header {
+
+    padding: 18px 24px;
+
+    background: #181b26;
+
+    border-bottom:
+        1px solid #303445;
+
+    display: flex;
+
+    justify-content:
+        space-between;
+
+    align-items:
+        center;
+}
+
+h1 {
+
+    margin: 0;
+
+    font-size: 22px;
+}
+
+#status {
+
+    font-size: 13px;
+
+    color: #fca5a5;
+}
+
+
+/* =========================================
+   MAIN
+========================================= */
+
+main {
+
+    max-width: 1100px;
+
+    margin: auto;
+
+    padding: 20px;
+}
+
+
+/* =========================================
+   CONTROLS
+========================================= */
+
+.controls {
+
+    display: flex;
+
+    gap: 8px;
+
+    margin-bottom: 15px;
+}
+
+button {
+
+    background: #30384d;
+
+    color: white;
+
+    border:
+        1px solid #4b5875;
+
+    border-radius: 6px;
+
+    padding:
+        8px 12px;
+
+    cursor: pointer;
+}
+
+button:hover {
+
+    background: #46536e;
+}
+
+
+/* =========================================
+   FEED
+========================================= */
+
+#feed {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 10px;
+}
+
+.event {
+
+    background: #191d29;
+
+    border:
+        1px solid #303445;
+
+    border-left:
+        5px solid #64748b;
+
+    border-radius: 9px;
+
+    padding:
+        13px 15px;
+
+    animation:
+        appear .18s ease-out;
+}
+
+@keyframes appear {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateY(-5px);
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateY(0);
+    }
+}
+
+
+/* =========================================
+   EVENT TEXT
+========================================= */
+
+.sentence {
+
+    font-size: 17px;
+
+    line-height: 1.55;
+}
+
+.player {
+
+    font-weight: 700;
+}
+
+.item {
+
+    font-weight: 700;
+}
+
+
+/* Location has its own color */
+
+.location {
+
+    color: #fbbf24;
+
+    font-weight: 600;
+}
+
+
+/* =========================================
+   ITEM TYPES
+========================================= */
+
+/* TRAP */
+
+.item.trap {
+
+    color: #ef4444;
+}
+
+
+/* PROGRESSION */
+
+.item.progression {
+
+    color: #c084fc;
+}
+
+
+/* USEFUL */
+
+.item.useful {
+
+    color: #60a5fa;
+}
+
+
+/* FILLER */
+
+.item.filler {
+
+    color: #e5e7eb;
+}
+
+
+/* =========================================
+   SMALL INFORMATION LINE
+========================================= */
+
+.meta {
+
+    margin-top: 5px;
+
+    color: #8f9ab3;
+
+    font-size: 12px;
+}
+
+
+/* =========================================
+   EMPTY FEED
+========================================= */
+
+.empty {
+
+    color: #8f9ab3;
+
+    text-align: center;
+
+    padding:
+        50px 10px;
+}
+
+
+/* =========================================
+   OBS MODE
+
+   For use as an OBS "Browser Source": the
+   page background, header, and controls are
+   hidden so only the event cards show, over
+   a transparent background.
+========================================= */
+
+body.obs-mode {
+
+    background: transparent;
+}
+
+body.obs-mode header,
+
+body.obs-mode .controls {
+
+    display: none;
+}
+
+body.obs-mode main {
+
+    padding: 10px;
+
+    max-width: none;
+}
+
+body.obs-mode #feed {
+
+    background: transparent;
+}
+
+body.obs-mode .empty {
+
+    display: none;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<header>
+
+    <h1>
+        Archipelago Live Item Feed
+    </h1>
+
+    <div id="status">
+        Connecting...
+    </div>
+
+</header>
+
+
+<main>
+
+
+<div class="controls">
+
+    <button id="clear">
+        Clear Feed
+    </button>
+
+    <button id="pause">
+        Pause
+    </button>
+
+    <button id="save">
+        Save Checks
+    </button>
+
+    <button id="load">
+        Load Checks
+    </button>
+
+    <button id="obsMode">
+        OBS Mode
+    </button>
+
+</div>
+
+<input
+    type="file"
+    id="loadInput"
+    accept="application/json"
+    style="display:none"
+>
+
+
+<div id="feed">
+
+    <div
+        class="empty"
+        id="empty"
+    >
+        Waiting for item events...
+    </div>
+
+</div>
+
+
+</main>
+
+
+<script>
+
+
+/* =========================================
+   ELEMENTS
+========================================= */
+
+const feed =
+    document.getElementById(
+        "feed"
+    );
+
+const status =
+    document.getElementById(
+        "status"
+    );
+
+
+/* =========================================
+   STATE
+========================================= */
+
+let paused = false;
+
+let socket;
+
+/*
+   Raw event objects, oldest first — kept in sync with what's on
+   screen so "Save Checks" has something to write out. Capped at
+   the same 150 the DOM feed keeps.
+*/
+let eventHistory = [];
+
+const MAX_EVENTS = 150;
+
+
+function resetFeed() {
+
+    feed.innerHTML = `
+
+        <div
+            class="empty"
+            id="empty"
+        >
+            Waiting for item events...
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================
+   HTML ESCAPING
+========================================= */
+
+function escapeHTML(value) {
+
+    return String(value)
+        .replace(
+            /[&<>"']/g,
+
+            character => ({
+
+                "&": "&amp;",
+
+                "<": "&lt;",
+
+                ">": "&gt;",
+
+                '"': "&quot;",
+
+                "'": "&#39;"
+
+            }[character])
+        );
+}
+
+
+/* =========================================
+   PLAYER COLOR (fallback only — the tracker
+   normally supplies source_color /
+   destination_color directly)
+
+   Mirrors tracker.py's approach: derive a
+   hue from the name, then nudge it away from
+   the fixed location/item colors below so a
+   player's color is never confused with them.
+========================================= */
+
+const RESERVED_HUES = [0, 38, 217, 272];
+const HUE_EXCLUSION_DEGREES = 18;
+
+function hueDistance(a, b) {
+
+    const diff =
+        Math.abs(a - b)
+        %
+        360;
+
+    return Math.min(
+        diff,
+        360 - diff
+    );
+}
+
+function hueIsReserved(hue) {
+
+    return RESERVED_HUES.some(
+        reserved =>
+            hueDistance(hue, reserved)
+            <
+            HUE_EXCLUSION_DEGREES
+    );
+}
+
+function hslToHex(hue, saturation, lightness) {
+
+    const c =
+        (1 - Math.abs(2 * lightness - 1))
+        *
+        saturation;
+
+    const x =
+        c
+        *
+        (1 - Math.abs((hue / 60) % 2 - 1));
+
+    const m =
+        lightness
+        -
+        c / 2;
+
+    let r = 0, g = 0, b = 0;
+
+    if (hue < 60) { r = c; g = x; b = 0; }
+    else if (hue < 120) { r = x; g = c; b = 0; }
+    else if (hue < 180) { r = 0; g = c; b = x; }
+    else if (hue < 240) { r = 0; g = x; b = c; }
+    else if (hue < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+
+    const toHex = value =>
+        Math.round((value + m) * 255)
+            .toString(16)
+            .padStart(2, "0");
+
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function playerColor(name) {
+
+    let hash = 0;
+
+    for (
+        let i = 0;
+        i < name.length;
+        i++
+    ) {
+
+        hash =
+            (
+                (hash << 5)
+                -
+                hash
+                +
+                name.charCodeAt(i)
+            )
+            |
+            0;
+    }
+
+    let hue =
+        Math.abs(hash)
+        %
+        360;
+
+    let nudges = 0;
+
+    while (
+        hueIsReserved(hue)
+        &&
+        nudges < 360
+    ) {
+
+        hue = (hue + 1) % 360;
+
+        nudges++;
+
+    }
+
+    return hslToHex(
+        hue,
+        0.68,
+        0.72
+    );
+}
+
+
+/* =========================================
+   ADD EVENT
+========================================= */
+
+function addEvent(event, options = {}) {
+
+    const {
+        fromLoad = false,
+        recordHistory = true
+    } = options;
+
+    if (paused && !fromLoad) {
+        return;
+    }
+
+
+    if (
+        !event
+        ||
+        !event.item
+    ) {
+
+        console.warn(
+            "Ignoring malformed event:",
+            event
+        );
+
+        return;
+    }
+
+
+    if (recordHistory) {
+
+        eventHistory.push(
+            event
+        );
+
+        while (
+            eventHistory.length
+            >
+            MAX_EVENTS
+        ) {
+
+            eventHistory.shift();
+
+        }
+
+    }
+
+
+    const empty =
+        document.getElementById(
+            "empty"
+        );
+
+    if (empty) {
+        empty.remove();
+    }
+
+
+    const element =
+        document.createElement(
+            "div"
+        );
+
+
+    element.className =
+        "event "
+        +
+        event.classification;
+
+
+    const sourceColor =
+        event.source_color
+        ||
+        playerColor(
+            event.source
+        );
+
+
+    const destinationColor =
+        event.destination_color
+        ||
+        playerColor(
+            event.destination
+        );
+
+
+    let sentence;
+
+
+    /* =====================================
+       PLAYER FOUND OWN ITEM
+    ===================================== */
+
+    if (
+        String(event.source_slot)
+        ===
+        String(event.destination_slot)
+    ) {
+
+        sentence =
+
+            `<span class="player" style="color:${sourceColor}">${
+                escapeHTML(event.source)
+            }</span> found their <span class="item ${
+                event.classification
+            }">${escapeHTML(event.item)}</span>`;
+
+    }
+
+
+    /* =====================================
+       PLAYER SENT ITEM TO SOMEONE ELSE
+    ===================================== */
+
+    else {
+
+        sentence =
+
+            `<span class="player" style="color:${sourceColor}">${
+                escapeHTML(event.source)
+            }</span> sent <span class="item ${
+                event.classification
+            }">${escapeHTML(event.item)}</span> to <span class="player" style="color:${
+                destinationColor
+            }">${escapeHTML(event.destination)}</span>`;
+
+    }
+
+
+    const time =
+        new Date()
+            .toLocaleTimeString();
+
+
+    element.innerHTML = `
+
+        <div class="sentence">
+
+            ${sentence}<span class="location">(${escapeHTML(
+                event.location
+            )})</span>
+
+        </div>
+
+
+        <div class="meta">
+
+            ${time}
+
+            ·
+
+            ${escapeHTML(
+                event.classification
+                    .toUpperCase()
+            )}
+
+        </div>
+
+    `;
+
+
+    feed.prepend(
+        element
+    );
+
+
+    /*
+       Keep the last MAX_EVENTS events.
+    */
+
+    while (
+        feed.children.length
+        >
+        MAX_EVENTS
+    ) {
+
+        feed.lastElementChild.remove();
+
+    }
+
+}
+
+
+/* =========================================
+   CONNECT
+========================================= */
+
+function connect() {
+
+    socket =
+        new WebSocket(
+            `ws://${location.hostname}:8765`
+        );
+
+
+    socket.onopen =
+        () => {
+
+            status.textContent =
+                "Tracker connected";
+
+            status.style.color =
+                "#86efac";
+
+        };
+
+
+    socket.onclose =
+        () => {
+
+            status.textContent =
+                "Disconnected — retrying...";
+
+            status.style.color =
+                "#fca5a5";
+
+
+            setTimeout(
+                connect,
+                2000
+            );
+
+        };
+
+
+    socket.onerror =
+        () => {
+
+            socket.close();
+
+        };
+
+
+    socket.onmessage =
+        message => {
+
+            try {
+
+                const data =
+                    JSON.parse(
+                        message.data
+                    );
+
+
+                if (
+                    data.type
+                    ===
+                    "item_event"
+                ) {
+
+                    addEvent(
+                        data.event
+                        ||
+                        data
+                    );
+
+                }
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    error
+                );
+
+            }
+
+        };
+
+}
+
+
+/* =========================================
+   CLEAR
+========================================= */
+
+document
+    .getElementById("clear")
+    .onclick = () => {
+
+        eventHistory = [];
+
+        resetFeed();
+
+    };
+
+
+/* =========================================
+   PAUSE
+========================================= */
+
+document
+    .getElementById("pause")
+    .onclick = event => {
+
+        paused =
+            !paused;
+
+
+        event.target.textContent =
+            paused
+            ? "Resume"
+            : "Pause";
+
+    };
+
+
+/* =========================================
+   SAVE CHECKS
+========================================= */
+
+document
+    .getElementById("save")
+    .onclick = () => {
+
+        const blob =
+            new Blob(
+                [
+                    JSON.stringify(
+                        eventHistory,
+                        null,
+                        2
+                    )
+                ],
+                {
+                    type: "application/json"
+                }
+            );
+
+        const url =
+            URL.createObjectURL(
+                blob
+            );
+
+        const link =
+            document.createElement(
+                "a"
+            );
+
+        link.href = url;
+
+        link.download =
+            `archipelago-checks-${Date.now()}.json`;
+
+        link.click();
+
+        URL.revokeObjectURL(
+            url
+        );
+
+    };
+
+
+/* =========================================
+   LOAD CHECKS
+========================================= */
+
+document
+    .getElementById("load")
+    .onclick = () => {
+
+        document
+            .getElementById("loadInput")
+            .click();
+
+    };
+
+document
+    .getElementById("loadInput")
+    .onchange = changeEvent => {
+
+        const file =
+            changeEvent.target.files[0];
+
+        changeEvent.target.value = "";
+
+        if (!file) {
+            return;
+        }
+
+        const reader =
+            new FileReader();
+
+        reader.onload =
+            () => {
+
+                let loaded;
+
+                try {
+
+                    loaded =
+                        JSON.parse(
+                            reader.result
+                        );
+
+                    if (
+                        !Array.isArray(
+                            loaded
+                        )
+                    ) {
+                        throw new Error(
+                            "not an array"
+                        );
+                    }
+
+                }
+
+                catch (error) {
+
+                    console.error(
+                        "Failed to load checks file:",
+                        error
+                    );
+
+                    alert(
+                        "That file doesn't look like a "
+                        +
+                        "saved checks file."
+                    );
+
+                    return;
+
+                }
+
+                eventHistory = [];
+
+                resetFeed();
+
+                for (
+                    const event of loaded.slice(
+                        -MAX_EVENTS
+                    )
+                ) {
+
+                    eventHistory.push(
+                        event
+                    );
+
+                    addEvent(
+                        event,
+                        {
+                            fromLoad: true,
+                            recordHistory: false
+                        }
+                    );
+
+                }
+
+            };
+
+        reader.readAsText(
+            file
+        );
+
+    };
+
+
+/* =========================================
+   OBS MODE
+========================================= */
+
+function setObsMode(enabled) {
+
+    document.body.classList.toggle(
+        "obs-mode",
+        enabled
+    );
+
+    document
+        .getElementById("obsMode")
+        .textContent =
+            enabled
+            ? "Exit OBS Mode"
+            : "OBS Mode";
+
+}
+
+document
+    .getElementById("obsMode")
+    .onclick = () => {
+
+        setObsMode(
+            !document.body.classList.contains(
+                "obs-mode"
+            )
+        );
+
+    };
+
+if (
+    new URLSearchParams(
+        location.search
+    ).get("obs")
+    === "1"
+) {
+
+    setObsMode(true);
+
+}
+
+
+/* =========================================
+   START
+========================================= */
+
+connect();
+
+</script>
+
+
+</body>
+
+</html>
